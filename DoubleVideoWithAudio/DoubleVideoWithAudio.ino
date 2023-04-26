@@ -13,6 +13,17 @@
 #include "AudioEncoder.h"
 #include "RTSP.h"
 
+// BLE Wifi Config
+// https://www.amebaiot.com/en/amebapro2-amb82-mini-arduino-ble-wifi-configuration/
+// Android APP
+// https://play.google.com/store/apps/details?id=com.rtk.btconfig
+#define BLE_WIFI_CONFIG
+#ifdef BLE_WIFI_CONFIG
+#include "BLEDevice.h"
+#include "BLEWifiConfigService.h"
+BLEWifiConfigService configService;
+#endif
+
 // Default preset configurations for each video channel:
 // Channel 0 : 1920 x 1080 30FPS H264
 // Channel 1 : 1280 x 720  30FPS H264
@@ -34,22 +45,43 @@ RTSP rtsp2;
 StreamIO audioStreamer(1, 1);   // 1 Input Audio -> 1 Output AAC
 StreamIO avMixStreamer(3, 2);   // 3 Input Video1 + Video2 + Audio -> 2 Output RTSP1 + RTSP2
 
-char ssid[] = "yourNetwork";    // your network SSID (name)
-char pass[] = "Password";       // your network password
-int status = WL_IDLE_STATUS;
+// char ssid[] = "yourNetwork";    // your network SSID (name)
+// char pass[] = "Password";       // your network password
+// int status = WL_IDLE_STATUS;
 
 void setup() {
     Serial.begin(115200);
 
-    // attempt to connect to Wifi network:
-    while (status != WL_CONNECTED) {
-        Serial.print("Attempting to connect to WPA SSID: ");
-        Serial.println(ssid);
-        status = WiFi.begin(ssid, pass);
+    // // attempt to connect to Wifi network:
+    // while (status != WL_CONNECTED) {
+    //     Serial.print("Attempting to connect to WPA SSID: ");
+    //     Serial.println(ssid);
+    //     status = WiFi.begin(ssid, pass);
 
-        // wait 2 seconds for connection:
-        delay(2000);
-    }
+    //     // wait 2 seconds for connection:
+    //     delay(2000);
+    // }
+
+
+#ifdef BLE_WIFI_CONFIG
+    BLE.init();
+    BLE.configServer(1);
+    configService.addService();
+    configService.begin();
+
+    // Wifi config service requires a specific advertisement format to be recognised by the app
+    // The advertisement needs the local BT address, which can only be obtained after starting peripheral mode
+    // Thus, we stop advertising to update the advert data, wait for advertising to stop, then restart advertising with new data
+    BLE.beginPeripheral();
+    BLE.configAdvert()->stopAdv();
+    BLE.configAdvert()->setAdvData(configService.advData());
+    BLE.configAdvert()->updateAdvertParams();
+    delay(100);
+    BLE.configAdvert()->startAdv();
+
+    while( !(WiFi.localIP()) ){}
+#endif
+
 
     // Configure both camera video channels with corresponding video format information
     // Adjust the bitrate based on your WiFi network quality
